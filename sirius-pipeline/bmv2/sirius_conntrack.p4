@@ -3,6 +3,9 @@
 
 #include "sirius_headers.p4"
 
+#define RST 6w0b000100
+#define FIN 6w0b000001
+
 #ifdef PNA_CONNTRACK
 
 #include "pna.p4"
@@ -40,10 +43,16 @@ control ConntrackIn(inout headers_t hdr,
 {
   action conntrackIn_allow () {
   /* Invalidate entry based on TCP flags */
-          if (hdr.tcp.flags & 0x101 /* FIN/RST */) {
+          if (hdr.tcp.flags & RST) {
             set_entry_expire_time(EXPIRE_TIME_PROFILE_NOW); // New PNA extern
             /* set entry to be purged */
-          }
+          } else if (hdr.tcp.flags & FIN) {
+            if (hdr.ipv6.isValid()) {
+              data_lenght=hdr.ipv6.payload_length - (hdr.tcp.data_offset << 2)
+            } else {
+              data_lenght=hdr.ipv4.total_len - ((hdr.ipv4.ihl + hdr.tcp.data_offset) << 2)
+            }
+
           restart_expire_timer(); // reset expiration timer for entry
           meta.conntrack_data.allow_in = true;
   }
